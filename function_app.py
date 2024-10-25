@@ -2,8 +2,7 @@ import azure.functions as func
 from src import UserThread
 from src.defs import *
 
-# app = func.FunctionApp(http_auth_level=func.AuthLevel.FUNCTION)
-app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
+app = func.FunctionApp(http_auth_level=func.AuthLevel.FUNCTION)
 ut = UserThread()
 
 
