@@ -25,4 +25,4 @@ class JsonErrorResponse(JsonResponse):
         super().__init__(data={"error": message}, status_code=status_code)
 
 
-__all__ = [EmptyResponse, JsonResponse, JsonErrorResponse]
+__all__ = ['EmptyResponse', 'JsonResponse', 'JsonErrorResponse']

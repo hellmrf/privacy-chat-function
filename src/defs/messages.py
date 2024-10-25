@@ -6,4 +6,4 @@ class SimpleMessage(TypedDict):
     content: str
 
 
-__all__ = [SimpleMessage]
+__all__ = ['SimpleMessage']
