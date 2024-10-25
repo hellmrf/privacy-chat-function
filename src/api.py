@@ -1,6 +1,6 @@
 import os
 import time
-from typing import Literal, TypedDict
+from typing import Literal
 from dotenv import load_dotenv
 
 import openai
@@ -8,47 +8,14 @@ from openai.types.beta import ThreadDeleted
 from openai.types.beta.threads import Message
 from openai.types.beta.threads.run import Run
 
+from .defs import *
+
 load_dotenv()
 
 RunPendingStatus = ["queued", "in_progress"]
 RunSuccessStatus = ["completed"]
 RunErrorStatus = ["cancelled", "expired", "failed"]
 RunFinalStatus = RunSuccessStatus + RunErrorStatus + ["requires_action"]
-
-
-class StatusCodeError(Exception):
-    status_code: int
-    message: str
-
-    def __init__(self,
-                 status_code: int = 500,
-                 message: str | Exception = "") -> None:
-        self.message = str(message)
-        self.status_code = status_code
-
-
-class BadRequestError(StatusCodeError):
-
-    def __init__(self, message: str | Exception = "Bad request") -> None:
-        super().__init__(400, message)
-
-
-class NotFoundError(StatusCodeError):
-
-    def __init__(self, message: str | Exception = "Not found") -> None:
-        super().__init__(404, message)
-
-
-class InternalServerError(StatusCodeError):
-
-    def __init__(self,
-                 message: str | Exception = "Internal server error") -> None:
-        super().__init__(500, message)
-
-
-class SimpleMessage(TypedDict):
-    role: Literal["user", "assistant"]
-    content: str
 
 
 class UserThread:
