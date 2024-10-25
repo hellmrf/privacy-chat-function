@@ -16,6 +16,36 @@ RunErrorStatus = ["cancelled", "expired", "failed"]
 RunFinalStatus = RunSuccessStatus + RunErrorStatus + ["requires_action"]
 
 
+class StatusCodeError(Exception):
+    status_code: int
+    message: str
+
+    def __init__(self,
+                 status_code: int = 500,
+                 message: str | Exception = "") -> None:
+        self.message = str(message)
+        self.status_code = status_code
+
+
+class BadRequestError(StatusCodeError):
+
+    def __init__(self, message: str | Exception = "Bad request") -> None:
+        super().__init__(400, message)
+
+
+class NotFoundError(StatusCodeError):
+
+    def __init__(self, message: str | Exception = "Not found") -> None:
+        super().__init__(404, message)
+
+
+class InternalServerError(StatusCodeError):
+
+    def __init__(self,
+                 message: str | Exception = "Internal server error") -> None:
+        super().__init__(500, message)
+
+
 class SimpleMessage(TypedDict):
     role: Literal["user", "assistant"]
     content: str
@@ -27,12 +57,12 @@ class UserThread:
     def __init__(self) -> None:
         openai.api_key = os.getenv('OPENAI_API_KEY')
         if openai.api_key is None:
-            raise Exception("OPENAI_API_KEY não está definido")
+            raise StatusCodeError(401, "OPENAI_API_KEY não está definido")
 
         assistant_id = os.getenv("OPENAI_ASSISTANT_ID")
 
         if assistant_id is None:
-            raise Exception("OPENAI_ASSISTANT_ID não está definido")
+            raise StatusCodeError(401, "OPENAI_ASSISTANT_ID não está definido")
 
         self.assistant_id = assistant_id
 
@@ -51,7 +81,7 @@ class UserThread:
             str: A resposta do assistente e a ID da thread
         """
         if message is None or len(message) <= 1:
-            raise Exception("Mensagem não pode ser nula")
+            raise BadRequestError("Mensagem não pode ser nula")
 
         if thread_id is None:
             return self.create_thread(message)
@@ -80,9 +110,9 @@ class UserThread:
                                                               order=order)
             return messages.data
         except openai.NotFoundError:
-            raise Exception(f"Thread {thread_id} não existe")
+            raise NotFoundError(f"Thread {thread_id} não existe")
         except Exception as e:
-            raise e
+            raise InternalServerError(e)
 
     def list_messages(self,
                       thread_id: str,
@@ -113,7 +143,8 @@ class UserThread:
         """
         response: ThreadDeleted = self.client.beta.threads.delete(thread_id)
         if not response.deleted:
-            raise Exception(f"Thread {thread_id} não pode ser deletada")
+            raise InternalServerError(
+                f"Thread {thread_id} não pode ser deletada")
 
     def message_thread(self, thread_id: str, message: str) -> tuple[str, str]:
         """Salva uma mensagem no thread do usuário
@@ -189,13 +220,15 @@ class UserThread:
         if run.status in RunSuccessStatus:
             return self.get_last_message(thread_id, "assistant")
         elif run.status in RunErrorStatus:
-            raise Exception(f"Run {run_id} finalizado com status {run.status}")
+            raise InternalServerError(
+                f"Run {run_id} finalizado com status {run.status}")
         elif run.status in RunPendingStatus and recursion_level < 5:
             time.sleep(2 + recursion_level * 2)
             return self._wait_run_and_get_response(thread_id, run_id,
                                                    recursion_level + 1)
 
-        raise Exception(f"Run retrieval max recursion level reached.")
+        raise InternalServerError(
+            f"Run retrieval max recursion level reached.")
 
     def get_last_message(
             self,
@@ -211,7 +244,4 @@ class UserThread:
                     elif content.type == 'refusal':
                         return content.refusal
 
-                    raise Exception(
-                        f"Tipo de conteúdo não suportado: {content.type}")
-
-        raise Exception("Nenhuma mensagem encontrada.")
+        raise NotFoundError("Nenhuma mensagem encontrada.")

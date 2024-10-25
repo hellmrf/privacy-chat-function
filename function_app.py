@@ -1,9 +1,6 @@
-from typing import Literal
 import azure.functions as func
-import logging
 import json
-import openai
-from src.api import UserThread
+from src.api import StatusCodeError, UserThread
 
 app = func.FunctionApp(http_auth_level=func.AuthLevel.FUNCTION)
 ut = UserThread()
@@ -17,11 +14,14 @@ class JsonResponse(func.HttpResponse):
         super().__init__(json.dumps(data), status_code=status_code, mimetype="application/json")
 
 class JsonErrorResponse(JsonResponse):
-    def __init__(self, message: str, status_code: int = 500):
-        super().__init__(data={"error": str(message)}, status_code=status_code)
+    def __init__(self, message: str | Exception, status_code: int = 500):
+        if isinstance(message, Exception):
+            message = str(message)
+
+        super().__init__(data={"error": message}, status_code=status_code)
 
 
-@app.route(route="/ask", methods=[func.HttpMethod.POST])
+@app.route(route="ask", methods=[func.HttpMethod.POST])
 def ask(req: func.HttpRequest) -> func.HttpResponse:
     thread_id = req.form.get("thread-id", None)
     message = req.form.get("message", None)
@@ -36,11 +36,13 @@ def ask(req: func.HttpRequest) -> func.HttpResponse:
             "thread-id": thread_id,
             "answer": answer
         }, 200)
+    except StatusCodeError as e:
+        return JsonErrorResponse(e.message, e.status_code)
     except Exception as e:
         return JsonErrorResponse(e)
 
 
-@app.route(route="/thread", methods=[func.HttpMethod.GET])
+@app.route(route="thread", methods=[func.HttpMethod.GET])
 def get_thread(req: func.HttpRequest) -> func.HttpResponse:
     thread_id = req.params.get("thread-id", None)
 
@@ -55,14 +57,14 @@ def get_thread(req: func.HttpRequest) -> func.HttpResponse:
             "thread-id": thread_id,
             "messages": messages
         }, 200)
-    except openai.NotFoundError:
-        return JsonErrorResponse(f"Thread {thread_id} not found", 404)
+    except StatusCodeError as e:
+        return JsonErrorResponse(e.message, e.status_code)
     except Exception as e:
         return JsonErrorResponse(e)
 
-@app.route(route="/thread", methods=[func.HttpMethod.DELETE])
+@app.route(route="thread", methods=[func.HttpMethod.DELETE])
 def clear_thread(req: func.HttpRequest) -> func.HttpResponse:
-    thread_id = req.form.get("thread-id", None)
+    thread_id = req.params.get("thread-id", None) or req.form.get("thread-id", None)
 
     if thread_id is None:
         return JsonErrorResponse("Thread ID is required", 400)
@@ -70,7 +72,7 @@ def clear_thread(req: func.HttpRequest) -> func.HttpResponse:
     try:
         ut.delete_thread(thread_id)
         return EmptyResponse()
-    except openai.NotFoundError:
-        return JsonErrorResponse(f"Thread {thread_id} not found", 404)
+    except StatusCodeError as e:
+        return JsonErrorResponse(e.message, e.status_code)
     except Exception as e:
         return JsonErrorResponse(e)
