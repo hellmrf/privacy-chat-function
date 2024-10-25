@@ -8,12 +8,12 @@ ut = UserThread()
 
 @app.route(route="ask", methods=[func.HttpMethod.POST])
 def ask(req: func.HttpRequest) -> func.HttpResponse:
-    thread_id = req.form.get("thread-id", None)
-    message = req.form.get("message", None)
+    body = req.get_json()
+    message = body.get("message", None)
+    thread_id = body.get("thread-id", None)
 
     if message is None:
-        return JsonErrorResponse("Message is required", 400)
-
+        return JsonErrorResponse("Message is required.", 400)
 
     try:
         thread_id, answer = ut.ask(message, thread_id)
